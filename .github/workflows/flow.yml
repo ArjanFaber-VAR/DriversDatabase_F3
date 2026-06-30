@@ -13,6 +13,9 @@ on:
 
     # Qualifying session
     - cron: '0-30 15 * * 5'
+    - cron: '35-59 10 * * 6'
+    # Sprint race
+    - cron: '0-15 11 * * 6'
 
 jobs:
   build:
