@@ -173,7 +173,7 @@ WHERE
     cur.close()
     conn.close()
 
-    print("Inserted rows into PostgreSQL")
+    print("Deleted incomplete rows into PostgreSQL")
     print("DONE")
 
 
