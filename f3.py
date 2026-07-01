@@ -160,7 +160,7 @@ async def run():
     print("Inserted rows into PostgreSQL")
     print("DONE")
     delete_query = """
-DELETE FROM f2_laps
+DELETE FROM f3_laps
 WHERE
     sector1 IS NULL OR sector1 = '' OR sector1 = 'STOP'
     OR sector2 IS NULL OR sector2 = '' OR sector2 = 'STOP'
