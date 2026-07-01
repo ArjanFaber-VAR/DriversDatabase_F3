@@ -157,6 +157,19 @@ async def run():
 
     conn.commit()
 
+    print("Inserted rows into PostgreSQL")
+    print("DONE")
+    delete_query = """
+DELETE FROM f2_laps
+WHERE
+    sector1 IS NULL OR sector1 = '' OR sector1 = 'STOP'
+    OR sector2 IS NULL OR sector2 = '' OR sector2 = 'STOP'
+    OR sector3 IS NULL OR sector3 = '' OR sector3 = 'STOP'
+"""
+
+    cur.execute(delete_query)
+    conn.commit()
+
     cur.close()
     conn.close()
 
