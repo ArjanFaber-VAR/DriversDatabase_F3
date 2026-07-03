@@ -1,7 +1,6 @@
 import asyncio
 from datetime import datetime
 
-import pandas as pd
 import psycopg2
 from playwright.async_api import async_playwright
 
@@ -12,73 +11,55 @@ def clean(text):
     return text.strip().replace("\n", " ")
 
 
-async def extract_table_rows(page):
-    """
-    Extract structured table rows directly from DOM instead of innerText.
-    """
-    rows_data = []
+def row_key(row):
+    # unique identity for a driver
+    return row[1]  # car_number is stable identifier
 
-    rows = await page.query_selector_all("table tbody tr")
 
-    for row in rows:
-        cols = await row.query_selector_all("td")
+async def extract_rows(page):
+    rows = []
+
+    elements = await page.query_selector_all("table tbody tr")
+
+    for el in elements:
+        cols = await el.query_selector_all("td")
         values = [clean(await c.inner_text()) for c in cols]
 
-        # Skip empty or malformed rows
         if len(values) < 6:
             continue
 
-        rows_data.append(values)
+        rows.append(values)
 
-    return rows_data
+    return rows
 
 
 async def run():
-    snapshots = []
-
-    print("Launching browser...")
+    print("Starting...")
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         page = await browser.new_page()
 
-        print("Opening page...")
         await page.goto(URL, timeout=60000)
-
-        # wait for live timing table to load
         await page.wait_for_timeout(8000)
 
-        print("Starting collection loop...")
+        print("Page ready")
+
+        last_state = {}   # car_number -> row
+        changes = []      # only changed rows
 
         for i in range(10):
-            rows = await extract_table_rows(page)
+            print(f"\nSnapshot {i}")
 
-            print(f"\nSnapshot {i} -> {len(rows)} rows")
+            rows = await extract_rows(page)
 
-            snapshots.append({
-                "timestamp": datetime.utcnow().isoformat(),
-                "rows": rows
-            })
+            for r in rows:
+                if len(r) < 6:
+                    continue
 
-            await asyncio.sleep(2)
+                key = row_key(r)
 
-        await browser.close()
-
-    print(f"\nCollected {len(snapshots)} snapshots")
-
-    # ---------------------------
-    # Convert to structured DataFrame
-    # ---------------------------
-
-    parsed_rows = []
-
-    for snap in snapshots:
-        ts = snap["timestamp"]
-
-        for r in snap["rows"]:
-            try:
-                parsed_rows.append({
-                    "timestamp": ts,
+                current = {
                     "position": r[0],
                     "car_number": r[1],
                     "driver": r[2],
@@ -88,28 +69,29 @@ async def run():
                     "sector1": r[6] if len(r) > 6 else None,
                     "sector2": r[7] if len(r) > 7 else None,
                     "sector3": r[8] if len(r) > 8 else None,
-                    "extra": r[9] if len(r) > 9 else None,
-                })
-            except Exception:
-                continue
+                    "timestamp": datetime.utcnow().isoformat()
+                }
 
-    df = pd.DataFrame(parsed_rows)
+                # detect change
+                if key not in last_state or last_state[key] != current:
+                    changes.append(current)
+                    last_state[key] = current
 
-    print(f"Parsed {len(df)} rows")
+                    print(f"✔ Change detected: {key}")
 
-    if df.empty:
-        print("No data found.")
-        return
+            await asyncio.sleep(2)
 
-    # ---------------------------
-    # DB connection (use env vars in real usage)
-    # ---------------------------
+        await browser.close()
+
+    print(f"\nTotal changed rows: {len(changes)}")
+
+    # ---------------- DB ----------------
 
     conn = psycopg2.connect(
-        host="ep-long-glitter-at9v26w9-pooler.c-9.us-east-1.aws.neon.tech",
-        database="neondb",
-        user="neondb_owner",
-        password="npg_P6OimSTt9ngC",
+        host="YOUR_HOST",
+        database="YOUR_DB",
+        user="YOUR_USER",
+        password="YOUR_PASSWORD",
         port=5432,
         sslmode="require"
     )
@@ -117,7 +99,7 @@ async def run():
     cur = conn.cursor()
 
     cur.execute("""
-    CREATE TABLE IF NOT EXISTS f3_laps (
+    CREATE TABLE IF NOT EXISTS f3_laps_changes (
         timestamp TEXT,
         position TEXT,
         car_number TEXT,
@@ -127,40 +109,43 @@ async def run():
         lap_time TEXT,
         sector1 TEXT,
         sector2 TEXT,
-        sector3 TEXT,
-        extra TEXT
+        sector3 TEXT
     )
     """)
 
     conn.commit()
 
     insert_query = """
-    INSERT INTO f3_laps (
+    INSERT INTO f3_laps_changes (
         timestamp, position, car_number, driver,
         gap, interval, lap_time,
-        sector1, sector2, sector3, extra
+        sector1, sector2, sector3
     )
-    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
     """
 
-    cur.executemany(insert_query, df.values.tolist())
-
-    conn.commit()
-
-    print("Inserted rows into PostgreSQL")
-
-    # Optional cleanup
-    cur.execute("""
-    DELETE FROM f3_laps
-    WHERE lap_time IS NULL OR lap_time = ''
-    """)
+    cur.executemany(
+        insert_query,
+        [
+            (
+                r["timestamp"],
+                r["position"],
+                r["car_number"],
+                r["driver"],
+                r["gap"],
+                r["interval"],
+                r["lap_time"],
+                r["sector1"],
+                r["sector2"],
+                r["sector3"],
+            )
+            for r in changes
+        ]
+    )
 
     conn.commit()
 
     cur.close()
     conn.close()
 
-    print("Done.")
-
-
-asyncio.run(run())
+    print("Inserted only changed rows.")
