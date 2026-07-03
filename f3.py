@@ -106,9 +106,9 @@ async def run():
     # ---------------------------
 
     conn = psycopg2.connect(
-        host="ep-long-glitter-at9v26w9-pooler.c-9.us-east-1.aws.neon.tec",
+        host="ep-long-glitter-at9v26w9-pooler.c-9.us-east-1.aws.neon.tech",
         database="neondb",
-        user="neondb_owner",
+        user="neondb",
         password="npg_P6OimSTt9ngC",
         port=5432,
         sslmode="require"
