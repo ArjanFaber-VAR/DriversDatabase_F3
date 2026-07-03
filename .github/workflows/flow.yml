@@ -8,15 +8,15 @@ on:
   workflow_dispatch:
   schedule:
         # Practice session 
-    - cron: '50-59 9 * * 5'
-    - cron: '0-35 10 * * 5'
+    - cron: '50-59 7 * * 5'
+    - cron: '0-35 8 * * 5'
 
     # Qualifying session
-    - cron: '0-30 15 * * 5'
+    - cron: '0-30 13 * * 5'
     
     # Sprint race
-    - cron: '35-59 10 * * 6'
-    - cron: '0-15 11 * * 6'
+    - cron: '35-59 8 * * 6'
+    - cron: '0-15 9 * * 6'
 jobs:
   build:
     runs-on: ubuntu-latest
