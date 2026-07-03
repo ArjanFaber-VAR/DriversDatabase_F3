@@ -38,7 +38,7 @@ async def run():
 
         last_hash = None
 
-        for i in range(1):
+        for i in range(10):
             text = await page.evaluate("document.body.innerText")
             current_hash = make_hash(text)
 
