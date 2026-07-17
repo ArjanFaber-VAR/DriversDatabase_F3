@@ -154,6 +154,33 @@ async def run():
     WHERE lap_time IS NULL OR lap_time = ''
     """)
 
+    # Remove rows with missing lap times
+    cur.execute("""
+    DELETE FROM f3_laps
+    WHERE lap_time IS NULL OR lap_time = '';
+    """)
+
+    # Remove duplicate rows (keeps one copy)
+    cur.execute("""
+DELETE FROM f3_laps a
+USING f3_laps b
+WHERE a.ctid < b.ctid
+  AND a.position IS NOT DISTINCT FROM b.position
+  AND a.car_number IS NOT DISTINCT FROM b.car_number
+  AND a.driver IS NOT DISTINCT FROM b.driver
+  AND a.gap IS NOT DISTINCT FROM b.gap
+  AND a.interval IS NOT DISTINCT FROM b.interval
+  AND a.lap_time IS NOT DISTINCT FROM b.lap_time
+  AND a.sector1 IS NOT DISTINCT FROM b.sector1
+  AND a.sector2 IS NOT DISTINCT FROM b.sector2
+  AND a.sector3 IS NOT DISTINCT FROM b.sector3
+  AND a.extra IS NOT DISTINCT FROM b.extra;
+""")
+
+    print(f"Deleted {cur.rowcount} duplicate rows.")
+
+
+
     conn.commit()
 
     cur.close()
